@@ -32,10 +32,10 @@ export async function buildLiveMonitoring(
       (err instanceof Error ? err.message : String(err));
   }
 
-  const liveStorms = stormList.filter((s) => s.status === "live");
   const target =
-    (opts.stormId && liveStorms.find((s) => s.id === opts.stormId)) ||
-    liveStorms[0] ||
+    (opts.stormId && stormList.find((s) => s.id === opts.stormId)) ||
+    stormList.find((s) => s.status === "live") ||
+    stormList[0] ||
     null;
 
   // No active cyclone in the monitored region => explicit no-active signal.

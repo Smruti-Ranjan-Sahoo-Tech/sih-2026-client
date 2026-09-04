@@ -21,6 +21,7 @@ import {
 import { getCategoryColor, windToCategory } from "@/lib/types";
 import LeafletFallbackMap from "./LeafletFallbackMap";
 import StormSVGOverlay from "./StormSVGOverlay";
+import WindStreamlinesOverlay from "./WindStreamlinesOverlay";
 
 export interface ConeCircle {
   timestamp: string;
@@ -77,6 +78,7 @@ export default function CycloneMap({
     onSelectRef.current = onSelectStorm;
   }, [onSelectStorm]);
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null);
+  const [showWindStreamlines, setShowWindStreamlines] = useState(true);
   const latestTrackPoint = track[track.length - 1] ?? null;
   const latestForecastPoint = forecastTrack[forecastTrack.length - 1] ?? null;
 
@@ -434,6 +436,23 @@ export default function CycloneMap({
     });
   }, [track]);
 
+  useEffect(() => {
+    if (!mapRef.current || !storm || !storm.lat || !storm.lon) {
+      return;
+    }
+
+    try {
+      mapRef.current.flyTo({
+        center: [storm.lon, storm.lat],
+        zoom: 6,
+        duration: 1100,
+        essential: true,
+      });
+    } catch {
+      /* ignore if map style is still loading */
+    }
+  }, [storm?.id, storm?.lat, storm?.lon]);
+
   if (!storm) {
     return (
       <div
@@ -567,6 +586,57 @@ export default function CycloneMap({
           )}
         </>
       )}
+
+      {/* Windy.com Style Map Layer Switcher & Wind Streamlines Toggle */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 rounded-2xl border border-white/20 bg-slate-900/80 p-1.5 shadow-2xl backdrop-blur-xl">
+        <button
+          type="button"
+          onClick={() => setShowWindStreamlines((v) => !v)}
+          className={`flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-bold transition-all ${
+            showWindStreamlines
+              ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30"
+              : "text-slate-400 hover:bg-white/10 hover:text-white"
+          }`}
+          title="Toggle animated wind particle streamlines overlay"
+        >
+          <span>💨</span>
+          <span>Streamlines {showWindStreamlines ? "ON" : "OFF"}</span>
+        </button>
+        <div className="h-4 w-px bg-white/20" />
+        {(Object.keys(BASEMAP_STYLES) as BasemapKind[]).map((kind) => {
+          const active = (basemapRef.current ?? "satellite") === kind;
+          return (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => {
+                basemapRef.current = kind;
+                if (mapRef.current) {
+                  const spec = BASEMAP_STYLES[kind];
+                  const src = mapRef.current.getSource("basemap") as unknown as { setTiles?: (t: string[]) => void };
+                  if (src && src.setTiles) {
+                    src.setTiles(spec.tiles);
+                  }
+                }
+              }}
+              className={`rounded-xl px-2.5 py-1 text-xs font-bold transition-all ${
+                active
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/30"
+                  : "text-slate-300 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              {BASEMAP_STYLES[kind].label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Wind Streamlines Canvas Overlay */}
+      <WindStreamlinesOverlay
+        map={mapRef.current}
+        storm={storm}
+        enabled={showWindStreamlines}
+      />
 
       <div className="absolute right-4 top-1/2 z-20 flex -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/15 bg-black/70 shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl">
         <button
@@ -811,26 +881,34 @@ function circlePolygon(
   };
 }
 
-export type BasemapKind = "satellite" | "streets" | "light";
+export type BasemapKind = "satellite" | "streets" | "light" | "dark";
 
 export const BASEMAP_STYLES: Record<BasemapKind, { label: string; tiles: string[] }> = {
   // High-res, always-on global satellite imagery (free, no API key).
   satellite: {
-    label: "🛰 Esri Satellite",
+    label: "🛰 Satellite",
     tiles: [
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     ],
   },
+  dark: {
+    label: "🌙 Dark Vector",
+    tiles: [
+      "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+      "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+      "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+      "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+    ],
+  },
   streets: {
-    label: "Streets",
+    label: "🗺 Streets",
     tiles: [
       "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     ],
   },
   // Light, low-contrast basemap optimised to fit dense data overlays
-  // (storm tracks & historical archive) without visual clutter.
   light: {
-    label: "📊 Light / Data",
+    label: "☀️ Light",
     tiles: [
       "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
       "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",

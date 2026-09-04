@@ -62,3 +62,45 @@ export function trendColor(trend: string): string {
   if (trend === "decreasing" || trend === "weakening") return "text-blue-600";
   return "text-slate-500";
 }
+
+export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
+const COASTAL_REF_POINTS: { name: string; lat: number; lon: number }[] = [
+  { name: "Odisha Coast (Paradip)", lat: 20.31, lon: 86.61 },
+  { name: "West Bengal Coast (Digha)", lat: 21.62, lon: 87.51 },
+  { name: "Andhra Coast (Visakhapatnam)", lat: 17.68, lon: 83.21 },
+  { name: "Tamil Nadu Coast (Chennai)", lat: 13.08, lon: 80.27 },
+  { name: "Gujarat Coast (Veraval)", lat: 20.9, lon: 70.36 },
+  { name: "Maharashtra Coast (Mumbai)", lat: 18.96, lon: 72.82 },
+  { name: "Kerala Coast (Kochi)", lat: 9.93, lon: 76.26 },
+  { name: "Bangladesh Coast (Chittagong)", lat: 22.35, lon: 91.82 },
+  { name: "Pakistan Coast (Karachi)", lat: 24.86, lon: 67.0 },
+];
+
+export function getNearestCoastInfo(lat: number, lon: number): { name: string; distanceKm: number } {
+  let minDistance = Infinity;
+  let nearestName = "Nearest Coast";
+
+  for (const coast of COASTAL_REF_POINTS) {
+    const dist = haversineKm(lat, lon, coast.lat, coast.lon);
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearestName = coast.name;
+    }
+  }
+
+  return { name: nearestName, distanceKm: minDistance };
+}
+

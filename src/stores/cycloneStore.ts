@@ -9,6 +9,7 @@ interface CycloneState {
   observations: Observation[];
   isLoading: boolean;
   error: string | null;
+  lastUpdated: string | null;
 
   setActiveStorm: (storm: Storm) => void;
   clearActiveStorm: () => void;
@@ -24,6 +25,7 @@ export const useCycloneStore = create<CycloneState>((set) => ({
   observations: [],
   isLoading: false,
   error: null,
+  lastUpdated: null,
 
   setActiveStorm: (storm) => set({ activeStorm: storm }),
 
@@ -41,6 +43,7 @@ export const useCycloneStore = create<CycloneState>((set) => ({
             ? state.activeStorm
             : storms[0] ?? null,
         isLoading: false,
+        lastUpdated: new Date().toISOString(),
       }));
     } catch (err) {
       set({ error: (err as Error).message, isLoading: false });

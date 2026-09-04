@@ -11,6 +11,7 @@ import { getCategoryColor, type Storm, type TrackPoint, type Observation, windTo
 import { useCycloneStore } from "@/stores/cycloneStore";
 import { usePredictionStore } from "@/stores/predictionStore";
 import MobileNav from "@/components/MobileNav";
+import LandfallBanner from "@/components/dashboard/LandfallBanner";
 
 const SIDEBAR_ITEMS = [
   { href: "/monitor", label: "Monitor", icon: "◎" },
@@ -75,10 +76,29 @@ function HomeContent() {
   const [mapCardOpen, setMapCardOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
 
+  const [stormTab, setStormTab] = useState<"live" | "historical">("live");
+
   useEffect(() => { setMounted(true); }, []);
 
   const { activeStorm, stormList, track, observations, isLoading, error, setActiveStorm, fetchStorms, fetchTrack, fetchObservations } = useCycloneStore();
   const { trend, prediction, fetchTrend, fetchPrediction } = usePredictionStore();
+
+  const liveStorms = useMemo(
+    () => stormList.filter((s) => s.status !== "historical"),
+    [stormList],
+  );
+  const historicalStorms = useMemo(
+    () => stormList.filter((s) => s.status === "historical"),
+    [stormList],
+  );
+
+  const handleFocusStorm = (s: Storm) => {
+    setActiveStorm(s);
+    const el = document.getElementById("cyclone-map-container");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
 
   useEffect(() => { fetchStorms(); }, [fetchStorms]);
 
@@ -152,12 +172,28 @@ function HomeContent() {
                 <span className="text-[10px] font-medium uppercase tracking-[0.2em]" style={{ color: "#8b95b0" }}>Storm</span>
                 <select
                   value={activeStorm?.id ?? ""}
-                  onChange={(e) => { const n = stormList.find((s) => s.id === e.target.value); if (n) setActiveStorm(n); }}
-                  className="max-w-[140px] cursor-pointer bg-transparent text-xs outline-none"
+                  onChange={(e) => { const n = stormList.find((s) => s.id === e.target.value); if (n) handleFocusStorm(n); }}
+                  className="max-w-[160px] cursor-pointer bg-transparent text-xs font-semibold outline-none"
                   style={{ color: "#1a2035" }}
                 >
-                  <option value="" disabled>{stormList.length} active</option>
-                  {stormList.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {liveStorms.length > 0 && (
+                    <optgroup label="🔴 Live Cyclones">
+                      {liveStorms.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          🔴 {s.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {historicalStorms.length > 0 && (
+                    <optgroup label="📁 Historical Archive">
+                      {historicalStorms.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          📁 {s.name} ({s.season ?? "Archive"})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </label>
 
@@ -246,6 +282,9 @@ function HomeContent() {
           )}
         </header>
 
+        {/* Coastal Landfall Warning Banner */}
+        <LandfallBanner storm={activeStorm} onFocusStorm={(s) => setActiveStorm(s)} />
+
         {/* Body */}
         <div className="grid flex-1 gap-3 lg:grid-cols-[72px_minmax(0,1fr)_276px]">
 
@@ -271,7 +310,7 @@ function HomeContent() {
           </aside>
 
           {/* Map */}
-          <section className="relative min-h-[calc(100vh-180px)] overflow-hidden rounded-2xl border shadow-lg" style={{ borderColor: "#e4e8f0", background: "#081018" }}>
+          <section id="cyclone-map-container" className="relative min-h-[calc(100vh-180px)] overflow-hidden rounded-2xl border shadow-lg" style={{ borderColor: "#e4e8f0", background: "#081018" }}>
             <div className="absolute inset-0">
               {activeStorm ? (
                 <CycloneMapWrapper
@@ -408,54 +447,129 @@ function HomeContent() {
 
           {/* Right panel */}
           <aside className="hidden flex-col gap-3 lg:flex">
-            {/* Storm systems list */}
-            <div className="flex max-h-[46vh] flex-col rounded-2xl border p-3 shadow-sm" style={{ background: "#ffffff", borderColor: "#e4e8f0" }}>
-              <div className="flex items-center justify-between px-1">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.3em]" style={{ color: "#8b95b0" }}>Storm Systems</div>
-                <span className="text-[10px] font-semibold" style={{ color: "#6366f1" }}>{stormList.length}</span>
+            {/* Storm systems list with live vs historical separation */}
+            <div className="flex max-h-[52vh] flex-col rounded-2xl border p-3 shadow-sm bg-white" style={{ borderColor: "#e4e8f0" }}>
+              <div className="flex items-center justify-between px-1 mb-2">
+                <div className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: "#8b95b0" }}>Storm Tracker</div>
+                <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600 border border-indigo-100">
+                  {stormList.length} Total
+                </span>
               </div>
-              <div className="mt-2 flex-1 space-y-1.5 overflow-y-auto pr-1" style={{ maxHeight: "38vh" }}>
-                {stormList.length === 0 && (
-                  <div className="px-2 py-4 text-center text-xs text-slate-400">No systems yet</div>
-                )}
-                {stormList.map((s) => {
-                  const sel = activeStorm?.id === s.id;
-                  const scat = s.category ?? windToCategory(s.wind_kt ?? s.maxWind ?? 0);
-                  const scur = getCategoryColor(scat);
-                  const historical = s.status === "historical";
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setActiveStorm(s)}
-                      className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left transition-all"
-                      style={sel
-                        ? { background: `${scur}14`, border: `1.5px solid ${scur}55` }
-                        : { background: "#f8f9ff", border: "1.5px solid #e8ecf5" }}
-                    >
-                      <span
-                        className="h-3.5 w-3.5 shrink-0 rounded-full border"
-                        style={{ background: scur, borderColor: sel ? scur : "#d0d7e8" }}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold" style={{ color: "#1a2035" }}>
-                          {s.name}
-                        </span>
-                        <span className="block truncate text-[11px]" style={{ color: "#8b95b0" }}>
-                          {scat.replace(/_/g, " ")} · {Math.round(s.wind_kt ?? s.maxWind ?? 0)} kt
-                        </span>
-                      </span>
-                      <span
-                        className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
-                        style={historical
-                          ? { background: "#f4f6fb", color: "#94a3b8", border: "1px solid #e2e8f0" }
-                          : { background: "#ecfdf5", color: "#059669", border: "1px solid #a7f3d0" }}
+
+              {/* Tabs */}
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setStormTab("live")}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition-all ${
+                    stormTab === "live"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 pulse-live" />
+                  Live ({liveStorms.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStormTab("historical")}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition-all ${
+                    stormTab === "historical"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  📁 Archive ({historicalStorms.length})
+                </button>
+              </div>
+
+              {/* Storm list content */}
+              <div className="flex-1 space-y-2 overflow-y-auto pr-1" style={{ maxHeight: "38vh" }}>
+                {stormTab === "live" ? (
+                  liveStorms.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-emerald-200 bg-emerald-50/50 p-4 text-center">
+                      <div className="text-xl mb-1">🌤</div>
+                      <div className="text-xs font-bold text-emerald-900">No Active Live Cyclones</div>
+                      <div className="mt-1 text-[11px] text-emerald-700">
+                        IMD & NASA GIBS feeds are nominal.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setStormTab("historical")}
+                        className="mt-2 text-xs font-semibold text-indigo-600 hover:underline"
                       >
-                        {historical ? "Archive" : "Live"}
-                      </span>
-                    </button>
-                  );
-                })}
+                        Explore Historical Archive →
+                      </button>
+                    </div>
+                  ) : (
+                    liveStorms.map((s) => {
+                      const sel = activeStorm?.id === s.id;
+                      const scat = s.category ?? windToCategory(s.wind_kt ?? s.maxWind ?? 0);
+                      const scur = getCategoryColor(scat);
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => handleFocusStorm(s)}
+                          className={`group w-full rounded-xl border p-2.5 text-left transition-all ${
+                            sel
+                              ? "border-emerald-500 bg-emerald-50/40 shadow-md shadow-emerald-500/10"
+                              : "border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-white"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
+                              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 pulse-live" />
+                              {s.name}
+                            </span>
+                            <span
+                              className="rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-white shadow-sm"
+                              style={{ backgroundColor: scur }}
+                            >
+                              {scat.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between text-xs text-slate-600">
+                            <span>💨 {Math.round(s.wind_kt ?? s.maxWind ?? 0)} kt ({windToKmh(s.wind_kt ?? s.maxWind ?? 0)} km/h)</span>
+                            <span className="font-semibold text-indigo-600 group-hover:translate-x-0.5 transition-transform">
+                              Focus 📍
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )
+                ) : (
+                  historicalStorms.map((s) => {
+                    const sel = activeStorm?.id === s.id;
+                    const scat = s.category ?? windToCategory(s.wind_kt ?? s.maxWind ?? 0);
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => handleFocusStorm(s)}
+                        className={`w-full rounded-xl border p-2.5 text-left transition-all ${
+                          sel
+                            ? "border-indigo-400 bg-indigo-50/40 shadow-sm"
+                            : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-slate-900">
+                            {s.name}
+                          </span>
+                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[9px] font-bold text-slate-700">
+                            {s.season ?? "Archive"}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
+                          <span>{scat.replace(/_/g, " ")} · {Math.round(s.wind_kt ?? s.maxWind ?? 0)} kt</span>
+                          <span className="text-indigo-600">View Track 📍</span>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </div>
 

@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { ConeCircle } from "@/components/map/CycloneMap";
 import { fetchLiveMonitoring } from "@/lib/api";
@@ -9,6 +10,7 @@ import type { LiveMonitoringData, LiveTrackPoint } from "@/lib/live/types";
 import type { TrackPoint, Storm } from "@/lib/types";
 import { formatCoord } from "@/lib/formatters";
 import MobileNav from "@/components/MobileNav";
+import LandfallBanner from "@/components/dashboard/LandfallBanner";
 
 const CycloneMapWrapper = dynamic(
   () => import("@/components/map/CycloneMapWrapper"),
@@ -54,6 +56,9 @@ export default function LivePage() {
 }
 
 function LiveContent() {
+  const searchParams = useSearchParams();
+  const stormIdParam = searchParams.get("storm") ?? undefined;
+
   const [data, setData] = useState<LiveMonitoringData | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -65,7 +70,7 @@ function LiveContent() {
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const payload = await fetchLiveMonitoring({ signal });
+      const payload = await fetchLiveMonitoring({ stormId: stormIdParam, signal });
       if (!signal?.aborted) { setData(payload); setFetchError(null); setLastRefresh(new Date()); }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -73,7 +78,7 @@ function LiveContent() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, []);
+  }, [stormIdParam]);
 
   useEffect(() => {
     let ctrl: AbortController | null = null;
@@ -84,6 +89,13 @@ function LiveContent() {
   }, [load, refreshMs]);
 
   const storm = useMemo(() => toStorm(data), [data]);
+
+  const handleFocusLiveStorm = () => {
+    const el = document.getElementById("live-map-container");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
 
   return (
     <div className="min-h-screen overflow-hidden" style={{ background: "linear-gradient(135deg,#eef0f8 0%,#f0f2f7 50%,#edf0f8 100%)" }}>
@@ -182,6 +194,9 @@ function LiveContent() {
           )}
         </header>
 
+        {/* Coastal Landfall Warning Banner */}
+        <LandfallBanner storm={storm} onFocusStorm={handleFocusLiveStorm} />
+
         {/* Body */}
         <div className="grid flex-1 gap-3 lg:grid-cols-[72px_minmax(0,1fr)_320px]">
           {/* Sidebar */}
@@ -201,7 +216,7 @@ function LiveContent() {
           </aside>
 
           {/* Map */}
-          <section className="relative min-h-[calc(100vh-180px)] overflow-hidden rounded-2xl border shadow-lg" style={{ borderColor: "#e4e8f0", background: "#081018" }}>
+          <section id="live-map-container" className="relative min-h-[calc(100vh-180px)] overflow-hidden rounded-2xl border shadow-lg" style={{ borderColor: "#e4e8f0", background: "#081018" }}>
             {/* Satellite tile info bar */}
             <div className="absolute top-0 left-0 right-0 z-30 flex items-center gap-3 rounded-t-2xl px-4 py-2 text-xs" style={{ background: "rgba(6,182,212,0.15)", backdropFilter: "blur(8px)", borderBottom: "1px solid rgba(6,182,212,0.3)" }}>
               <span className="font-bold uppercase tracking-wider" style={{ color: "#06b6d4" }}>🛰 Satellite / NASA GIBS</span>

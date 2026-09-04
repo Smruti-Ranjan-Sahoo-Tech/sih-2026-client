@@ -85,6 +85,15 @@ export default function MonitorPage() {
     fetchTrend,
   ]);
 
+  const liveStorms = useMemo(
+    () => stormList.filter((s) => s.status !== "historical"),
+    [stormList],
+  );
+  const historicalStorms = useMemo(
+    () => stormList.filter((s) => s.status === "historical"),
+    [stormList],
+  );
+
   const groups = useMemo(() => {
     const byCat = new Map<string, Storm[]>();
     for (const s of stormList) {
@@ -107,7 +116,7 @@ export default function MonitorPage() {
     () => Math.max(0, ...stormList.map((s) => s.wind_kt ?? s.maxWind ?? 0)),
     [stormList],
   );
-  const activeCount = stormList.length;
+  const activeCount = liveStorms.length;
   const stormCount = stormList.length;
 
   return (
